@@ -4,18 +4,6 @@ from mongo import (
     session_collection,
 )
 
-# ------------------------------------------------------------------
-# Clear Existing Data
-# ------------------------------------------------------------------
-
-ue_collection.delete_many({})
-subscriber_collection.delete_many({})
-session_collection.delete_many({})
-
-# ------------------------------------------------------------------
-# Sample UE
-# ------------------------------------------------------------------
-
 ue = {
     "device_id": "UE-001",
     "imei": "356938035643809",
@@ -25,9 +13,6 @@ ue = {
     "status": "Registered"
 }
 
-# ------------------------------------------------------------------
-# Sample Subscriber
-# ------------------------------------------------------------------
 
 subscriber = {
     "device_id": "UE-001",
@@ -56,9 +41,6 @@ subscriber = {
     "allocated_bandwidth": 0
 }
 
-# ------------------------------------------------------------------
-# Session
-# ------------------------------------------------------------------
 
 session = {
     "device_id": "UE-001",
@@ -66,17 +48,12 @@ session = {
     "jwt_token": None
 }
 
-# ------------------------------------------------------------------
-# Insert into MongoDB
-# ------------------------------------------------------------------
 
 ue_collection.insert_one(ue)
 subscriber_collection.insert_one(subscriber)
 session_collection.insert_one(session)
 
-print("===================================")
-print("Database Seeded Successfully")
-print("===================================")
+print("Database Seeded Successfully")   
 
 print("\nUE Collection")
 print(ue)

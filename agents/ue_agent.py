@@ -4,15 +4,8 @@ import requests
 
 app = FastAPI(title="UE Agent")
 
-# ---------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------
-
 SUPERVISOR_URL = "http://127.0.0.1:8000"
 
-# ---------------------------------------------------------
-# UE State (Stored in Memory)
-# ---------------------------------------------------------
 
 ue_state = {
     "device_id": "UE-001",
@@ -21,10 +14,6 @@ ue_state = {
     "jwt_token": None,
     "authenticated": False
 }
-
-# ---------------------------------------------------------
-# Models
-# ---------------------------------------------------------
 
 class RegisterRequest(BaseModel):
     device_id: str
@@ -36,11 +25,6 @@ class AuthenticationRequest(BaseModel):
     device_id: str
     secret_key: str
 
-
-# ---------------------------------------------------------
-# Home
-# ---------------------------------------------------------
-
 @app.get("/")
 def home():
 
@@ -49,10 +33,6 @@ def home():
         "Status": "Running"
     }
 
-
-# ---------------------------------------------------------
-# Register UE
-# ---------------------------------------------------------
 
 @app.post("/register")
 def register(request: RegisterRequest):
@@ -83,10 +63,6 @@ def register(request: RegisterRequest):
     return response.json()
 
 
-# ---------------------------------------------------------
-# Authenticate
-# ---------------------------------------------------------
-
 @app.post("/authenticate")
 def authenticate(request: AuthenticationRequest):
 
@@ -116,10 +92,6 @@ def authenticate(request: AuthenticationRequest):
     return result
 
 
-# ---------------------------------------------------------
-# UE Status
-# ---------------------------------------------------------
-
 @app.get("/status")
 def status():
 
@@ -129,10 +101,6 @@ def status():
         "jwt_token": ue_state["jwt_token"]
     }
 
-
-# ---------------------------------------------------------
-# Logout
-# ---------------------------------------------------------
 
 @app.post("/logout")
 def logout():
@@ -145,10 +113,6 @@ def logout():
         "message": "Logged Out Successfully"
     }
 
-
-# ---------------------------------------------------------
-# Run
-# ---------------------------------------------------------
 
 if __name__ == "__main__":
 

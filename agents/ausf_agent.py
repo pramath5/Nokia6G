@@ -27,18 +27,10 @@ UDM_URL = "http://127.0.0.1:8002/subscriber"
 app = FastAPI(title="AUSF Agent")
 
 
-# ------------------------------------------------------------
-# Request Model
-# ------------------------------------------------------------
-
 class AuthenticationRequest(BaseModel):
     device_id: str
     secret_key: str
 
-
-# ------------------------------------------------------------
-# Health Check
-# ------------------------------------------------------------
 
 @app.get("/")
 def home():
@@ -47,17 +39,8 @@ def home():
         "status": "Running"
     }
 
-
-# ------------------------------------------------------------
-# Authenticate Subscriber
-# ------------------------------------------------------------
-
 @app.post("/authenticate")
 def authenticate(request: AuthenticationRequest):
-
-    # --------------------------------------------------------
-    # Ask UDM for subscriber information
-    # --------------------------------------------------------
 
     try:
         response = requests.post(
@@ -81,9 +64,6 @@ def authenticate(request: AuthenticationRequest):
 
     subscriber = response.json()["subscriber"]
 
-    # --------------------------------------------------------
-    # Verify Subscriber
-    # --------------------------------------------------------
 
     if subscriber["status"] != "Active":
         raise HTTPException(
@@ -96,10 +76,6 @@ def authenticate(request: AuthenticationRequest):
             status_code=401,
             detail="Invalid Secret Key"
         )
-
-    # --------------------------------------------------------
-    # Generate JWT
-    # --------------------------------------------------------
 
     expiry = datetime.utcnow() + timedelta(
         minutes=JWT_EXPIRY_MINUTES
@@ -119,10 +95,6 @@ def authenticate(request: AuthenticationRequest):
         algorithm=JWT_ALGORITHM
     )
 
-    # --------------------------------------------------------
-    # Store Session
-    # --------------------------------------------------------
-
     session_collection.update_one(
         {
             "device_id": subscriber["device_id"]
@@ -137,10 +109,6 @@ def authenticate(request: AuthenticationRequest):
         upsert=True
     )
 
-    # --------------------------------------------------------
-    # Response
-    # --------------------------------------------------------
-
     return {
         "status": "Authentication Successful",
         "jwt_token": token,
@@ -151,11 +119,6 @@ def authenticate(request: AuthenticationRequest):
             "trust_score": subscriber["trust_score"]
         }
     }
-
-
-# ------------------------------------------------------------
-# Run
-# ------------------------------------------------------------
 
 if __name__ == "__main__":
 

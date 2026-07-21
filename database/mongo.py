@@ -1,5 +1,3 @@
-# database/mongo.py
-
 from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
@@ -32,9 +30,9 @@ def test_connection():
     """
     try:
         client.admin.command("ping")
-        print("✅ Connected to MongoDB Atlas")
+        print("Connected to MongoDB Atlas")
     except Exception as e:
-        print(f"❌ MongoDB Connection Failed: {e}")
+        print(f"MongoDB Connection Failed: {e}")
 
 
 if __name__ == "__main__":
