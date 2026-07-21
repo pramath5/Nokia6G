@@ -1,28 +1,88 @@
-from mongo import subscriber_collection
+from mongo import (
+    ue_collection,
+    subscriber_collection,
+    session_collection,
+)
+
+# ------------------------------------------------------------------
+# Clear Existing Data
+# ------------------------------------------------------------------
+
+ue_collection.delete_many({})
+subscriber_collection.delete_many({})
+session_collection.delete_many({})
+
+# ------------------------------------------------------------------
+# Sample UE
+# ------------------------------------------------------------------
+
+ue = {
+    "device_id": "UE-001",
+    "imei": "356938035643809",
+    "imsi": "404450123456789",
+    "model": "Pixel 9",
+    "manufacturer": "Google",
+    "status": "Registered"
+}
+
+# ------------------------------------------------------------------
+# Sample Subscriber
+# ------------------------------------------------------------------
 
 subscriber = {
     "device_id": "UE-001",
+    "subscriber_name": "Pavan",
+
     "imsi": "404450123456789",
     "imei": "356938035643809",
-    "subscriber_name": "Pavan",
+
     "status": "Active",
+
     "plan": "Premium",
+
     "secret_key": "ABC123XYZ",
-    "services": [
-        "Internet",
-        "VoLTE",
-        "SMS"
+
+    "trust_score": 95,
+
+    "risk_level": "Low",
+
+    "allowed_services": [
+        "Streaming",
+        "Gaming",
+        "VoIP"
     ],
-    "trust_score": 100,
-    "risk_level": "Low"
+
+    "available_bandwidth": 100,
+    "allocated_bandwidth": 0
 }
 
-existing = subscriber_collection.find_one(
-    {"imsi": subscriber["imsi"]}
-)
+# ------------------------------------------------------------------
+# Session
+# ------------------------------------------------------------------
 
-if existing:
-    print("Subscriber already exists.")
-else:
-    subscriber_collection.insert_one(subscriber)
-    print("Subscriber inserted successfully.")
+session = {
+    "device_id": "UE-001",
+    "authenticated": False,
+    "jwt_token": None
+}
+
+# ------------------------------------------------------------------
+# Insert into MongoDB
+# ------------------------------------------------------------------
+
+ue_collection.insert_one(ue)
+subscriber_collection.insert_one(subscriber)
+session_collection.insert_one(session)
+
+print("===================================")
+print("Database Seeded Successfully")
+print("===================================")
+
+print("\nUE Collection")
+print(ue)
+
+print("\nSubscriber Collection")
+print(subscriber)
+
+print("\nSession Collection")
+print(session)

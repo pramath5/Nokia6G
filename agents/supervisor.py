@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import requests
 
@@ -6,15 +6,16 @@ from database.mongo import ue_collection, session_collection
 
 app = FastAPI(title="Supervisor Agent")
 
-# ---------------------------------------------------
+# ---------------------------------------------------------
 # Configuration
-# ---------------------------------------------------
+# ---------------------------------------------------------
 
 AUSF_URL = "http://127.0.0.1:8001"
+SECURITY_URL = "http://127.0.0.1:8004"
 
-# ---------------------------------------------------
+# ---------------------------------------------------------
 # Models
-# ---------------------------------------------------
+# ---------------------------------------------------------
 
 class UERegistration(BaseModel):
     device_id: str
@@ -24,157 +25,125 @@ class UERegistration(BaseModel):
 
 class AuthenticationRequest(BaseModel):
     device_id: str
-    imsi: str
-    imei: str
+    secret_key: str
 
 
-class ServiceRequest(BaseModel):
-    session_token: str
-    service: str
+class AuthorizationRequest(BaseModel):
+    jwt_token: str
+    requested_bandwidth: int
 
 
-# ---------------------------------------------------
+# ---------------------------------------------------------
 # Home
-# ---------------------------------------------------
+# ---------------------------------------------------------
 
 @app.get("/")
 def home():
 
     return {
-        "Agent": "Supervisor",
+        "Agent": "Supervisor Agent",
         "Status": "Running"
     }
 
 
-# ---------------------------------------------------
+# ---------------------------------------------------------
 # Register UE
-# ---------------------------------------------------
+# ---------------------------------------------------------
 
 @app.post("/register")
 def register(ue: UERegistration):
 
     existing = ue_collection.find_one(
         {
-            "imsi": ue.imsi
+            "device_id": ue.device_id
         }
     )
 
     if existing:
 
         return {
-
             "status": "Success",
-
             "message": "UE Already Registered"
-
         }
 
     ue_collection.insert_one(
-
         {
-
             "device_id": ue.device_id,
-
             "imsi": ue.imsi,
-
             "imei": ue.imei,
-
             "authenticated": False
-
         }
-
     )
 
     return {
-
         "status": "Success",
-
         "message": "UE Registered Successfully"
-
     }
 
 
-# ---------------------------------------------------
+# ---------------------------------------------------------
 # Authenticate UE
-# ---------------------------------------------------
+# ---------------------------------------------------------
 
 @app.post("/authenticate")
 def authenticate(request: AuthenticationRequest):
 
-    existing = ue_collection.find_one(
-
+    ue = ue_collection.find_one(
         {
-
-            "imsi": request.imsi
-
+            "device_id": request.device_id
         }
-
     )
 
-    if existing is None:
+    if ue is None:
 
-        return {
+        raise HTTPException(
+            status_code=404,
+            detail="UE Not Registered"
+        )
 
-            "status": "Failed",
+    try:
 
-            "message": "UE Not Registered"
+        response = requests.post(
 
-        }
+            f"{AUSF_URL}/authenticate",
 
-    response = requests.post(
+            json={
+                "device_id": request.device_id,
+                "secret_key": request.secret_key
+            }
 
-        f"{AUSF_URL}/authenticate",
+        )
 
-        json={
+    except Exception:
 
-            "device_id": request.device_id,
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to contact AUSF Agent"
+        )
 
-            "imsi": request.imsi,
+    if response.status_code != 200:
 
-            "imei": request.imei
-
-        }
-
-    )
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=response.text
+        )
 
     ausf_response = response.json()
 
-    if ausf_response["status"] != "Success":
+    if ausf_response.get("status") != "Authentication Successful":
 
         return ausf_response
-
-    session_collection.insert_one(
-
-        {
-
-            "device_id": request.device_id,
-
-            "imsi": request.imsi,
-
-            "session_token": ausf_response["session_token"],
-
-            "expires_at": ausf_response["expires_at"]
-
-        }
-
-    )
 
     ue_collection.update_one(
 
         {
-
-            "imsi": request.imsi
-
+            "device_id": request.device_id
         },
 
         {
-
             "$set": {
-
                 "authenticated": True
-
             }
-
         }
 
     )
@@ -182,45 +151,55 @@ def authenticate(request: AuthenticationRequest):
     return ausf_response
 
 
-# ---------------------------------------------------
-# Service Request
-# ---------------------------------------------------
+# ---------------------------------------------------------
+# Authorize Resource Request
+# ---------------------------------------------------------
 
-@app.post("/service")
-def service(request: ServiceRequest):
+@app.post("/authorize-resource")
+def authorize_resource(request: AuthorizationRequest):
 
-    session = session_collection.find_one(
+    try:
 
-        {
+        response = requests.post(
 
-            "session_token": request.session_token
+            f"{SECURITY_URL}/authorize",
 
-        }
+            json={
 
-    )
+                "jwt_token": request.jwt_token,
 
-    if session is None:
+                "requested_bandwidth": request.requested_bandwidth
 
-        return {
+            }
 
-            "status": "Failed",
+        )
 
-            "message": "Invalid Session"
+    except Exception:
 
-        }
+        raise HTTPException(
 
-    return {
+            status_code=500,
 
-        "status": "Success",
+            detail="Unable to contact Security Agent"
 
-        "message": f"{request.service} Access Granted"
+        )
 
-    }
+    if response.status_code != 200:
+
+        raise HTTPException(
+
+            status_code=response.status_code,
+
+            detail=response.text
+
+        )
+
+    return response.json()
 
 
-# ---------------------------------------------------
+# ---------------------------------------------------------
 # Status
-# ---------------------------------------------------
+# ---------------------------------------------------------
 
 @app.get("/status")
 def status():
@@ -229,14 +208,22 @@ def status():
 
         "registered_devices": ue_collection.count_documents({}),
 
-        "active_sessions": session_collection.count_documents({})
+        "authenticated_devices": ue_collection.count_documents(
+            {
+                "authenticated": True
+            }
+        ),
+
+        "active_sessions": session_collection.count_documents(
+            {}
+        )
 
     }
 
 
-# ---------------------------------------------------
+# ---------------------------------------------------------
 # Run
-# ---------------------------------------------------
+# ---------------------------------------------------------
 
 if __name__ == "__main__":
 

@@ -1,176 +1,168 @@
-from fastapi import FastAPI
+# agents/ausf_agent.py
+
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+
 import requests
 import jwt
+import os
+
+from dotenv import load_dotenv
 from datetime import datetime, timedelta
+
+from database.mongo import session_collection
+
+# ------------------------------------------------------------
+# Load Environment Variables
+# ------------------------------------------------------------
+
+load_dotenv()
+
+JWT_SECRET = os.getenv("JWT_SECRET")
+JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+JWT_EXPIRY_MINUTES = int(os.getenv("JWT_EXPIRY_MINUTES", 30))
+
+UDM_URL = "http://127.0.0.1:8002/subscriber"
 
 app = FastAPI(title="AUSF Agent")
 
-# ------------------------------------
-# Configuration
-# ------------------------------------
 
-UDM_URL = "http://127.0.0.1:8002"
-
-JWT_SECRET = "my_super_secret_key"
-
-JWT_ALGORITHM = "HS256"
-
-JWT_EXPIRY_MINUTES = 30
-
-# ------------------------------------
-# Models
-# ------------------------------------
+# ------------------------------------------------------------
+# Request Model
+# ------------------------------------------------------------
 
 class AuthenticationRequest(BaseModel):
-
     device_id: str
-
-    imsi: str
-
-    imei: str
+    secret_key: str
 
 
-# ------------------------------------
-# Home
-# ------------------------------------
+# ------------------------------------------------------------
+# Health Check
+# ------------------------------------------------------------
 
 @app.get("/")
 def home():
-
     return {
-
-        "Agent": "AUSF",
-
-        "Status": "Running"
-
+        "agent": "AUSF Agent",
+        "status": "Running"
     }
 
 
-# ------------------------------------
-# Authenticate
-# ------------------------------------
+# ------------------------------------------------------------
+# Authenticate Subscriber
+# ------------------------------------------------------------
 
 @app.post("/authenticate")
 def authenticate(request: AuthenticationRequest):
 
+    # --------------------------------------------------------
+    # Ask UDM for subscriber information
+    # --------------------------------------------------------
+
     try:
-
         response = requests.post(
-
-            f"{UDM_URL}/get-subscriber",
-
+            UDM_URL,
             json={
-
-                "imsi": request.imsi
-
+                "device_id": request.device_id
             }
-
         )
 
     except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to contact UDM Agent"
+        )
 
-        return {
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=404,
+            detail="Subscriber not found"
+        )
 
-            "status": "Failed",
+    subscriber = response.json()["subscriber"]
 
-            "message": "Unable to contact UDM"
+    # --------------------------------------------------------
+    # Verify Subscriber
+    # --------------------------------------------------------
 
-        }
+    if subscriber["status"] != "Active":
+        raise HTTPException(
+            status_code=401,
+            detail="Subscriber is inactive"
+        )
 
-    udm_response = response.json()
+    if subscriber["secret_key"] != request.secret_key:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid Secret Key"
+        )
 
-    if udm_response["status"] != "Success":
-
-        return {
-
-            "status": "Failed",
-
-            "message": "Subscriber Not Found"
-
-        }
-
-    subscriber = udm_response["subscriber"]
-
-    # Verify IMEI
-
-    if subscriber["imei"] != request.imei:
-
-        return {
-
-            "status": "Failed",
-
-            "message": "IMEI Verification Failed"
-
-        }
+    # --------------------------------------------------------
+    # Generate JWT
+    # --------------------------------------------------------
 
     expiry = datetime.utcnow() + timedelta(
-
         minutes=JWT_EXPIRY_MINUTES
-
     )
 
     payload = {
-
-        "device_id": request.device_id,
-
-        "imsi": request.imsi,
-
+        "device_id": subscriber["device_id"],
+        "subscriber_name": subscriber["subscriber_name"],
+        "plan": subscriber["plan"],
+        "trust_score": subscriber["trust_score"],
         "exp": expiry
-
     }
 
-    session_token = jwt.encode(
-
+    token = jwt.encode(
         payload,
-
         JWT_SECRET,
-
         algorithm=JWT_ALGORITHM
-
     )
 
+    # --------------------------------------------------------
+    # Store Session
+    # --------------------------------------------------------
+
+    session_collection.update_one(
+        {
+            "device_id": subscriber["device_id"]
+        },
+        {
+            "$set": {
+                "authenticated": True,
+                "jwt_token": token,
+                "login_time": datetime.utcnow()
+            }
+        },
+        upsert=True
+    )
+
+    # --------------------------------------------------------
+    # Response
+    # --------------------------------------------------------
+
     return {
-
-        "status": "Success",
-
-        "message": "Authentication Successful",
-
-        "session_token": session_token,
-
-        "expires_at": expiry.isoformat()
-
+        "status": "Authentication Successful",
+        "jwt_token": token,
+        "subscriber": {
+            "device_id": subscriber["device_id"],
+            "subscriber_name": subscriber["subscriber_name"],
+            "plan": subscriber["plan"],
+            "trust_score": subscriber["trust_score"]
+        }
     }
 
 
-# ------------------------------------
-# Status
-# ------------------------------------
-
-@app.get("/status")
-def status():
-
-    return {
-
-        "status": "Running"
-
-    }
-
-
-# ------------------------------------
+# ------------------------------------------------------------
 # Run
-# ------------------------------------
+# ------------------------------------------------------------
 
 if __name__ == "__main__":
 
     import uvicorn
 
     uvicorn.run(
-
         app,
-
         host="127.0.0.1",
-
         port=8001
-
     )

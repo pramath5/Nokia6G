@@ -1,0 +1,8 @@
+MongoDB
+udm_agent.py (8002)
+ausf_agent.py (8001)
+subscriber_agent.py (8003)
+security_agent.py (8004)
+supervisor.py (8000)
+ue_agent.py (8005)
+application_agent.py (8006)

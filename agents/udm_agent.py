@@ -1,4 +1,6 @@
-from fastapi import FastAPI
+# agents/udm_agent.py
+
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from database.mongo import subscriber_collection
@@ -6,92 +8,59 @@ from database.mongo import subscriber_collection
 app = FastAPI(title="UDM Agent")
 
 
-# -----------------------------
-# Models
-# -----------------------------
+# ------------------------------------------------------------------
+# Request Model
+# ------------------------------------------------------------------
 
 class SubscriberRequest(BaseModel):
-    imsi: str
+    device_id: str
 
 
-# -----------------------------
-# Home
-# -----------------------------
+# ------------------------------------------------------------------
+# Health Check
+# ------------------------------------------------------------------
 
 @app.get("/")
 def home():
-
     return {
-        "Agent": "UDM",
-        "Status": "Running"
+        "agent": "UDM Agent",
+        "status": "Running"
     }
 
 
-# -----------------------------
-# Get Subscriber
-# -----------------------------
+# ------------------------------------------------------------------
+# Get Subscriber Details
+# ------------------------------------------------------------------
 
-@app.post("/get-subscriber")
+@app.post("/subscriber")
 def get_subscriber(request: SubscriberRequest):
 
     subscriber = subscriber_collection.find_one(
-        {
-            "imsi": request.imsi
-        },
-        {
-            "_id": 0
-        }
+        {"device_id": request.device_id},
+        {"_id": 0}
     )
 
-    if subscriber is None:
-
-        return {
-
-            "status": "Failed",
-
-            "message": "Subscriber Not Found"
-
-        }
+    if not subscriber:
+        raise HTTPException(
+            status_code=404,
+            detail="Subscriber not found"
+        )
 
     return {
-
         "status": "Success",
-
         "subscriber": subscriber
-
     }
 
 
-# -----------------------------
-# Status
-# -----------------------------
-
-@app.get("/status")
-def status():
-
-    return {
-
-        "Subscriber Count":
-
-        subscriber_collection.count_documents({})
-
-    }
-
-
-# -----------------------------
+# ------------------------------------------------------------------
 # Run
-# -----------------------------
+# ------------------------------------------------------------------
 
 if __name__ == "__main__":
-
     import uvicorn
 
     uvicorn.run(
-
         app,
-
         host="127.0.0.1",
-
         port=8002
-
     )
