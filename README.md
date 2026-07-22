@@ -1,209 +1,173 @@
-# Nokia6G
+# 📡 Nokia 6G / 5G AI Multi-Agent Network Architecture
 
-A FastAPI-based 5G simulation project that models a small multi-agent network workflow for UE registration, authentication, session handling, and bandwidth authorization using MongoDB.
+An intelligent, microservice-based multi-agent network orchestration and slice authorization system built with **FastAPI**, **MongoDB Atlas**, and **PyJWT**. The system simulates key 5G/6G Core Network functions (AUSF, UDM, Security, Subscriber Management) operating as autonomous, interacting micro-agents.
 
-## Overview
+---
 
-This project is organized around multiple lightweight agents that cooperate to simulate a simplified 5G control and service flow:
+## 🏗️ System Architecture
 
-- **Supervisor Agent** coordinates UE registration, authentication, and resource authorization.
-- **AUSF Agent** authenticates devices and issues JWT tokens.
-- **UDM Agent** fetches subscriber data from MongoDB.
-- **Subscriber Agent** validates subscriber state and allocates bandwidth.
-- **Security Agent** verifies JWTs and enforces authorization checks.
-- **UE Agent** simulates a user equipment device interacting with the system.
-- **Application Agent** simulates an application requesting network bandwidth.
-
-MongoDB is used to store UE, subscriber, and session data.
-
-## Project Structure
-
-```text
-Nokia6G/
-├── agents/
-│   ├── application_agent.py
-│   ├── ausf_agent.py
-│   ├── security_agent.py
-│   ├── subscriber_agent.py
-│   ├── supervisor.py
-│   ├── udm_agent.py
-│   └── ue_agent.py
-├── database/
-│   ├── mongo.py
-│   ├── seed_database.py
-│   └── test_db.py
-├── postman/
-│   ├── collections/
-│   ├── environments/
-│   ├── flows/
-│   ├── globals/
-│   ├── mocks/
-│   └── specs/
-├── overview.txt
-├── README.md
-└── requirements.txt
+```mermaid
+graph TD
+    UE["📱 UE Agent (8005)"] -->|Register / Authenticate| Sup["🛡️ Supervisor Agent (8000)"]
+    App["💻 Application Agent (8006)"] -->|Resource Requests| Sup
+    Sup -->|1. Verify Credentials| AUSF["🔑 AUSF Agent (8001)"]
+    Sup -->|2. Authorize Resource| Sec["🔒 Security Agent (8004)"]
+    AUSF -->|Query Subscriber| UDM["📂 UDM Agent (8002)"]
+    Sec -->|Validate Token & Allocate| Sub["📊 Subscriber Agent (8003)"]
+    
+    UDM -.->|Read| DB[(🍃 MongoDB Atlas)]
+    Sub -.->|Read/Update| DB
+    Sup -.->|Read/Update| DB
 ```
 
-## Agent Ports
+---
 
-| Agent | Port |
-|---|---:|
-| Supervisor Agent | 8000 |
-| AUSF Agent | 8001 |
-| UDM Agent | 8002 |
-| Subscriber Agent | 8003 |
-| Security Agent | 8004 |
-| UE Agent | 8005 |
-| Application Agent | 8006 |
+## 🤖 Multi-Agent Port & Service Reference
 
-## Prerequisites
+| Agent Name | Port | Description / Primary Role | Key Endpoints |
+| :--- | :---: | :--- | :--- |
+| **Supervisor Agent** | `8000` | Central orchestrator & gateway for UE registration, authentication routing, and security validation. | `POST /register`<br>`POST /authenticate`<br>`POST /authorize-resource`<br>`GET /status` |
+| **AUSF Agent** | `8001` | Authentication Server Function (AUSF). Validates subscriber secret key with UDM and issues signed JWT tokens. | `POST /authenticate` |
+| **UDM Agent** | `8002` | Unified Data Management (UDM). Interfaces with MongoDB to fetch subscriber profiles. | `POST /subscriber` |
+| **Subscriber Agent** | `8003` | Manages subscriber dynamic bandwidth, slice allocations, trust score evaluation, and plan details. | `POST /allocate-bandwidth`<br>`GET /subscriber/{device_id}` |
+| **Security Agent** | `8004` | Decodes & verifies JWT signatures and enforces resource access authorization policies. | `POST /authorize` |
+| **UE Agent** | `8005` | User Equipment simulator handling local device authentication state, JWT storage, and registration flows. | `POST /register`<br>`POST /authenticate`<br>`GET /status`<br>`POST /logout` |
+| **Application Agent** | `8006` | Simulates high-demand 5G/6G applications requesting dynamic network bandwidth slices. | `POST /request-bandwidth` |
 
-- Python 3.10+
-- MongoDB instance
-- pip
+---
 
-## Installation
+## 💾 Database Schema
 
-1. Clone or download the project.
-2. Create and activate a virtual environment.
-3. Install dependencies:
+The project uses MongoDB Atlas with three main collections:
 
+1. **`UE`**: Stores registered user equipment devices (`device_id`, `imsi`, `imei`, `status`, `authenticated`).
+2. **`Subscribers`**: Contains subscription plan, trust scores (`trust_score`), available/allocated bandwidth (`available_bandwidth`, `allocated_bandwidth`), and authentication keys (`secret_key`).
+3. **`Sessions`**: Tracks active authenticated sessions with JWT tokens and login timestamps.
+
+---
+
+## 🛠️ Prerequisites & Installation
+
+### 1. Requirements
+* Python 3.8+
+* MongoDB Atlas Cluster (or local MongoDB instance)
+
+### 2. Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-## Environment Variables
-
-Create a `.env` file in the project root and define the following values:
-
+### 3. Environment Configuration (`.env`)
+Create a `.env` file in the root directory with the following variables:
 ```env
-MONGO_URI=your_mongodb_connection_string
+MONGO_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/
 DATABASE_NAME=5g_ai_agents
-JWT_SECRET=your_secret_key
+JWT_SECRET=your_super_secret_jwt_key
 JWT_ALGORITHM=HS256
 JWT_EXPIRY_MINUTES=30
 ```
 
-## Running the Services
+### 4. Seed the Database
+Populate MongoDB with initial test subscribers and UE device records:
+```bash
+python database/seed_database.py
+```
 
-Start each agent in a separate terminal from the project root.
+---
 
-### Supervisor Agent
+## 🚀 Running the Multi-Agent System
+
+Each agent runs as an independent FastAPI microservice on its dedicated port.
+
+Start each service in a separate terminal:
 
 ```bash
+# Terminal 1: Supervisor Agent (Gateway)
 python agents/supervisor.py
-```
 
-### AUSF Agent
-
-```bash
+# Terminal 2: AUSF Agent
 python agents/ausf_agent.py
-```
 
-### UDM Agent
-
-```bash
+# Terminal 3: UDM Agent
 python agents/udm_agent.py
-```
 
-### Subscriber Agent
-
-```bash
+# Terminal 4: Subscriber Agent
 python agents/subscriber_agent.py
-```
 
-### Security Agent
-
-```bash
+# Terminal 5: Security Agent
 python agents/security_agent.py
-```
 
-### UE Agent
-
-```bash
+# Terminal 6: UE Agent (Client Simulator)
 python agents/ue_agent.py
-```
 
-### Application Agent
-
-```bash
+# Terminal 7: Application Agent (App Simulator)
 python agents/application_agent.py
 ```
 
-## Main API Endpoints
+---
 
-### Supervisor Agent
+## 🧪 Workflow & API Usage Example
 
-- `GET /`
-- `POST /register`
-- `POST /authenticate`
-- `POST /authorize-resource`
-- `GET /status`
+### 1. Register User Equipment (UE)
+```http
+POST http://127.0.0.1:8005/register
+Content-Type: application/json
 
-### AUSF Agent
+{
+  "device_id": "UE-001",
+  "imsi": "404450123456789",
+  "imei": "356938035643809"
+}
+```
 
-- `GET /`
-- `POST /authenticate`
+### 2. Authenticate & Obtain JWT
+```http
+POST http://127.0.0.1:8005/authenticate
+Content-Type: application/json
 
-### UDM Agent
+{
+  "device_id": "UE-001",
+  "secret_key": "ABC123XYZ"
+}
+```
+*Returns a signed JWT token valid for 30 minutes.*
 
-- `GET /`
-- `POST /subscriber`
+### 3. Request Bandwidth Slice
+```http
+POST http://127.0.0.1:8006/request-bandwidth
+Content-Type: application/json
 
-### Subscriber Agent
+{
+  "jwt_token": "<YOUR_JWT_TOKEN>"
+}
+```
+*Validates token via Security Agent, checks subscriber trust score (>= 80), and allocates network slice bandwidth.*
 
-- `GET /`
-- `POST /allocate-bandwidth`
-- `GET /subscriber/{device_id}`
+### 4. Check Network Status
+```http
+GET http://127.0.0.1:8000/status
+```
 
-### Security Agent
+---
 
-- `GET /`
-- `POST /authorize`
+## 📁 Repository Structure
 
-### UE Agent
-
-- `GET /`
-- `POST /register`
-- `POST /authenticate`
-- `GET /status`
-- `POST /logout`
-
-### Application Agent
-
-- `GET /`
-- `POST /request-bandwidth`
-
-## Typical Flow
-
-1. Register a UE through the Supervisor Agent or UE Agent.
-2. Authenticate the UE using a valid `device_id` and `secret_key`.
-3. Receive a JWT token from the AUSF Agent.
-4. Use the JWT token to request bandwidth through the Application Agent.
-5. The Security Agent validates the token and the Subscriber Agent approves or rejects bandwidth allocation.
-
-## Dependencies
-
-The project uses:
-
-- fastapi
-- uvicorn
-- pymongo
-- python-dotenv
-- pyjwt
-- cryptography
-- pydantic
-- requests
-
-## Notes
-
-- Make sure MongoDB is reachable before starting the agents.
-- The database layer raises an error if `MONGO_URI` is missing.
-- Seed subscriber data before testing the full authentication and authorization flow if required by your setup.
-
-## Future Improvements
-
-- Add a Postman collection for end-to-end testing.
-- Add automated tests for each agent.
-- Add Docker support for running all services together.
-- Document request and response examples for each endpoint.
+```
+Nokia6G/
+├── agents/
+│   ├── application_agent.py   # Application-layer slice request simulator (Port 8006)
+│   ├── ausf_agent.py          # Authentication Server Function agent (Port 8001)
+│   ├── security_agent.py      # Security & JWT verification agent (Port 8004)
+│   ├── subscriber_agent.py    # Slice bandwidth & subscriber agent (Port 8003)
+│   ├── supervisor.py          # Central Gateway / Orchestrator agent (Port 8000)
+│   ├── udm_agent.py           # Unified Data Management agent (Port 8002)
+│   └── ue_agent.py            # User Equipment simulator agent (Port 8005)
+├── database/
+│   ├── mongo.py               # MongoDB PyMongo connection client setup
+│   ├── seed_database.py       # Seed script for initial sample data
+│   └── test_db.py             # Database ping connection test
+├── .env                       # Environment configuration file
+├── requirements.txt           # Python package dependencies
+├── overview.txt               # Port layout mapping summary
+└── README.md                  # Project documentation
+```
